@@ -1,0 +1,19 @@
+[Unit]
+Description=Remote control Telegram bot
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+User=rcbot
+WorkingDirectory=/opt/rc-bot
+ExecStart=/opt/rc-bot/venv/bin/python bot.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/rc-bot
+
+[Install]
+WantedBy=multi-user.target

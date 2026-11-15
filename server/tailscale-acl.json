@@ -1,0 +1,12 @@
+// Политика доступа Tailscale (Admin console -> Access controls).
+// Устройства пользователя (ПК, ноутбук, телефон) видят только друг друга;
+// VPS с ботом (tag:bot) может ходить ТОЛЬКО на порт агента 8765 ваших устройств;
+// устройства пользователя могут заходить на VPS по SSH. Больше ничего.
+{
+  "tagOwners": { "tag:bot": ["autogroup:admin"] },
+  "acls": [
+    { "action": "accept", "src": ["autogroup:member"], "dst": ["autogroup:self:*"] },
+    { "action": "accept", "src": ["tag:bot"],           "dst": ["autogroup:member:8765"] },
+    { "action": "accept", "src": ["autogroup:member"], "dst": ["tag:bot:22"] }
+  ]
+}

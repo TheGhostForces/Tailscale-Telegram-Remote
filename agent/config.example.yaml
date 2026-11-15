@@ -1,0 +1,24 @@
+# Конфигурация агента. Скопируйте в config.yaml.
+# Секрет НЕ хранится здесь: он в файле .env (AGENT_SECRET=...), создаётся установщиком.
+
+bind: auto          # auto = адрес интерфейса Tailscale (100.64.0.0/10); либо явный IP
+port: 8765
+
+# Известные устройства: только эти MAC агент согласится будить (/wake).
+devices:
+  - name: pc
+    mac: "AA:BB:CC:DD:EE:01"
+  - name: laptop
+    mac: "AA:BB:CC:DD:EE:02"
+wol_broadcast: "255.255.255.255"   # широковещательный адрес LAN (или 192.168.0.255)
+wol_port: 9
+
+# Разрешённые команды для /run (без shell, только список аргументов).
+commands: {}
+#  Windows-пример:
+#    notepad: ["notepad.exe"]
+#  Linux-пример:
+#    updates: ["apt", "list", "--upgradable"]
+
+log_file: agent.log
+rate_limit_per_minute: 30

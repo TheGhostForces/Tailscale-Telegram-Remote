@@ -1,0 +1,27 @@
+# --- секреты и локальная конфигурация (НЕ коммитить) ---
+.env
+.env.*
+!.env.example
+config.yaml
+!config.example.yaml
+
+# --- ключи RustDesk-сервера и его данные ---
+server/data/
+id_ed25519*
+*.key
+*.pem
+
+# --- служебное ---
+*.log
+venv/
+.venv/
+__pycache__/
+*.pyc
+_shot.png
+patch.py
+
+# --- ОС и редакторы ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

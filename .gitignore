@@ -25,3 +25,7 @@ patch.py
 Thumbs.db
 .vscode/
 .idea/
+
+# --- список устройств с секретами агентов ---
+devices.yaml
+!devices.example.yaml

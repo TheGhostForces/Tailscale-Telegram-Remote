@@ -1,0 +1,24 @@
+# Пример devices.yaml. Файл создаётся и меняется командой rcctl, вручную править не нужно.
+devices:
+  pc:
+    title: ПК (Windows)
+    address: 100.64.0.1        # адрес в Tailscale
+    port: 8765
+    secret: "<64 hex-символа, выдаёт rcctl>"
+    mac: AA:BB:CC:DD:EE:01
+    wake:
+      mode: router             # будить через проброс UDP на роутере
+      host: your-home.ddns.example
+      port: 40009
+  laptop:
+    title: Ноутбук (Debian)
+    address: 100.64.0.2
+    port: 8765
+    secret: "<64 hex-символа>"
+    mac: AA:BB:CC:DD:EE:02
+    wake:
+      mode: via                # или: будить по LAN через другое устройство с агентом
+      device: pc
+clients:                       # только RustDesk: в боте не показываются
+  phone:
+    title: Телефон

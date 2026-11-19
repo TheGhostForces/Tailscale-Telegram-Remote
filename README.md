@@ -15,6 +15,7 @@ VPS: RustDesk hbbs/hbbr  │    (слушает только адрес Tailscal
 - Удалённый рабочий стол: RustDesk с собственным сервером.
 - Агент: статус, сон, блокировка, перезагрузка, выключение, скриншот, запуск команд из белого списка, Wake-on-LAN.
 - Telegram-бот: ответы только владельцу, опасные действия через кнопку и TOTP, уведомления о выходе устройства в сеть и о попытках доступа.
+- Добавление и удаление устройств одной командой `rcctl`; телефоны и другие клиенты только для RustDesk в боте не появляются.
 - Пробуждение спящего компьютера через проброс UDP-порта на роутере.
 
 ## Структура
@@ -23,7 +24,7 @@ VPS: RustDesk hbbs/hbbr  │    (слушает только адрес Tailscal
 | `agent/` | агент (FastAPI), установщики для Windows и Debian |
 | `bot/` | Telegram-бот (aiogram), установщик для VPS |
 | `server/` | RustDesk (docker compose), ACL Tailscale, брандмауэр VPS |
-| `docs/` | [установка](docs/SETUP.md), [приёмка](docs/ACCEPTANCE.md), [разбор проблем](docs/TROUBLESHOOTING.md) |
+| `docs/` | [установка](docs/SETUP.md), [добавление и удаление устройств](docs/DEVICES.md), [приёмка](docs/ACCEPTANCE.md), [разбор проблем](docs/TROUBLESHOOTING.md) |
 
 ## Требования
 - Аккаунт Tailscale (с 2FA), VPS с Debian/Ubuntu и белым IP, Telegram-бот (@BotFather).
@@ -36,13 +37,14 @@ VPS: RustDesk hbbs/hbbr  │    (слушает только адрес Tailscal
 2. RustDesk-сервер: `server/docker-compose.yml`, клиенты на ваш сервер.
 3. Агент: `agent/install-windows.ps1` / `agent/install-linux.sh`.
 4. Бот: `bot/install-vps.sh`, заполнить `.env` и `config.yaml` по образцам.
+5. Устройства: `sudo rcctl add ...` на VPS и установка агента с выданным секретом ([DEVICES.md](docs/DEVICES.md)).
 
 ## Конфигурация и секреты
-В репозитории только образцы: `config.example.yaml` (агент и бот) и `bot/.env.example`. Реальные `config.yaml` и `.env` создаются на устройствах и **не коммитятся** (см. `.gitignore`).
+В репозитории только образцы: `config.example.yaml` (агент и бот), `bot/.env.example`, `bot/devices.example.yaml`. Реальные `config.yaml` и `.env` создаются на устройствах и **не коммитятся** (см. `.gitignore`).
 
 | Секрет | Где живёт |
 |---|---|
-| `AGENT_SECRET` | `.env` агента на устройстве; тот же в `.env` бота как `PC_SECRET` / `LAPTOP_SECRET` |
+| `AGENT_SECRET` | `.env` агента на устройстве; тот же в `devices.yaml` на VPS (ведётся `rcctl`) |
 | `BOT_TOKEN`, `OWNER_ID`, `TOTP_SECRET` | `.env` бота на VPS |
 | ключ RustDesk-сервера `id_ed25519` | `server/data/` на VPS |
 

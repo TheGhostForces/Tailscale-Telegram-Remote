@@ -28,11 +28,8 @@ TOKEN = os.environ.get("BOT_TOKEN") or sys.exit("BOT_TOKEN не задан")
 OWNER = int(os.environ.get("OWNER_ID") or sys.exit("OWNER_ID не задан"))
 TOTP = pyotp.TOTP(os.environ.get("TOTP_SECRET") or sys.exit("TOTP_SECRET не задан"))
 
-DEVICES: dict = CFG["devices"]
-for n, d in DEVICES.items():
-    d["secret"] = os.environ.get(d["secret_env"], "")
-    if len(d["secret"]) < 32:
-        sys.exit(f"{d['secret_env']} для устройства {n} не задан")
+DEVICES: dict = {}   # заполняется из devices.yaml (его ведёт rcctl) и перечитывается на лету
+DEVICES_FILE = Path(os.environ.get("RC_DEVICES_FILE", BASE / "devices.yaml"))
 CONFIRM = set(CFG.get("confirm_actions", ["sleep", "reboot", "shutdown"]))
 
 log = logging.getLogger("rc-bot")
@@ -42,6 +39,37 @@ _h = logging.handlers.RotatingFileHandler(BASE / CFG.get("log_file", "bot.log"),
 _h.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 log.addHandler(_h)
 logging.basicConfig(level=logging.WARNING)
+
+
+def load_devices() -> dict:
+    """devices.yaml (ведёт rcctl) - источник истины; без него читается старый блок devices из config.yaml."""
+    if DEVICES_FILE.exists():
+        devs = (yaml.safe_load(DEVICES_FILE.read_text(encoding="utf-8")) or {}).get("devices") or {}
+        if CFG.get("devices"):
+            log.warning("devices в config.yaml игнорируются: используется %s", DEVICES_FILE.name)
+    else:
+        devs = {}
+        for n, d in (CFG.get("devices") or {}).items():
+            d = dict(d)
+            d["secret"] = os.environ.get(d.get("secret_env", ""), "")
+            devs[n] = d
+    out = {}
+    for n, d in devs.items():
+        d = dict(d)
+        if len(str(d.get("secret", ""))) < 32:
+            raise ValueError(f"у устройства {n} не задан секрет (минимум 32 символа)")
+        if not d.get("address"):
+            raise ValueError(f"у устройства {n} не указан address")
+        d.setdefault("title", n)
+        d.setdefault("port", 8765)
+        out[str(n)] = d
+    return out
+
+
+try:
+    DEVICES.update(load_devices())
+except Exception as _e:
+    sys.exit(f"Ошибка списка устройств: {_e}")
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
@@ -140,6 +168,12 @@ async def send_wake(dev: str):
 
 
 async def wake_flow(chat_id: int, dev: str):
+    if dev not in DEVICES:
+        await bot.send_message(chat_id, "⚠️ Устройство удалено из списка.")
+        return
+    if not DEVICES[dev].get("wake") or not DEVICES[dev].get("mac"):
+        await bot.send_message(chat_id, f"ℹ️ Для {DEVICES[dev]['title']} не настроено пробуждение (нет mac/wake).")
+        return
     if await get_status(dev):
         await bot.send_message(chat_id, f"🟢 {DEVICES[dev]['title']} уже онлайн")
         return
@@ -163,6 +197,9 @@ async def wake_flow(chat_id: int, dev: str):
 
 # ----------------------------------------------------------- выполнение действий
 async def execute(chat_id: int, action: str, dev: str, arg: str | None = None):
+    if dev not in DEVICES:
+        await bot.send_message(chat_id, "⚠️ Устройство удалено из списка.")
+        return
     title = DEVICES[dev]["title"]
     log.info("EXEC action=%s dev=%s arg=%s", action, dev, arg)
     try:
@@ -194,6 +231,9 @@ def device_kb(prefix: str) -> InlineKeyboardMarkup:
 
 
 async def request_action(chat_id: int, action: str, dev: str, arg: str | None = None):
+    if dev not in DEVICES:
+        await bot.send_message(chat_id, "⚠️ Устройство удалено из списка.")
+        return
     if action in CONFIRM or action == "run":
         tok = secrets.token_hex(6)
         PENDING[tok] = {"action": action, "dev": dev, "arg": arg, "exp": time.time() + 120}
@@ -211,12 +251,22 @@ async def request_action(chat_id: int, action: str, dev: str, arg: str | None = 
 async def cmd_help(m: Message):
     await m.answer("/devices — список и статус\n/status <имя>\n/wake <имя>\n/lock <имя>\n/screenshot <имя>\n"
                    "/sleep, /reboot, /shutdown <имя> — с подтверждением и TOTP\n/run <имя> <команда> — из белого списка\n\n"
-                   "Без имени устройства покажу кнопки. Имена: " + ", ".join(DEVICES))
+                   "/reload — перечитать список устройств\n\n"
+                   "Без имени устройства покажу кнопки. Имена: " + (", ".join(DEVICES) or "список пуст"))
+
+
+@router.message(Command("reload"))
+async def cmd_reload(m: Message):
+    err = await reload_devices(announce=False)
+    await m.answer(f"⚠️ {err}" if err else "Устройства: " + (", ".join(DEVICES) or "список пуст"))
 
 
 @router.message(Command("devices"))
 async def cmd_devices(m: Message):
     names = list(DEVICES)
+    if not names:
+        await m.answer("Список устройств пуст. Добавьте устройство командой rcctl add на сервере.")
+        return
     res = await asyncio.gather(*(get_status(n) for n in names))
     await m.answer("\n\n".join(fmt_status(n, s) for n, s in zip(names, res)))
 
@@ -330,23 +380,77 @@ async def on_code(m: Message):
     await execute(m.chat.id, p["action"], p["dev"], p["arg"])
 
 
-# ----------------------------------------------------------- мониторинг
+# ----------------------------------------------------------- мониторинг и список устройств
+async def reload_devices(announce: bool = True) -> str | None:
+    """Перечитать devices.yaml. Возвращает текст ошибки (прежний список при этом сохраняется)."""
+    try:
+        new = load_devices()
+    except Exception as e:
+        log.error("reload devices failed: %s", e)
+        if announce:
+            await notify(f"⚠️ Не удалось применить список устройств: {e}\nОстаётся прежний список.")
+        return str(e)
+    old = dict(DEVICES)
+    DEVICES.clear()
+    DEVICES.update(new)
+    added = sorted(set(new) - set(old))
+    removed = sorted(set(old) - set(new))
+    changed = sorted(n for n in new if n in old and new[n] != old[n])
+    for n in removed:
+        ONLINE.pop(n, None)
+    log.info("devices reloaded +%s -%s ~%s", added, removed, changed)
+    if announce and (added or removed or changed):
+        parts = [f"добавлено: {', '.join(added)}" if added else "",
+                 f"удалено: {', '.join(removed)}" if removed else "",
+                 f"изменено: {', '.join(changed)}" if changed else ""]
+        await notify("🔧 Список устройств обновлён (" + "; ".join(p for p in parts if p) + ")")
+    return None
+
+
+def _devices_mtime() -> int:
+    try:
+        return DEVICES_FILE.stat().st_mtime_ns
+    except FileNotFoundError:
+        return 0
+
+
+async def watch_devices():
+    last = _devices_mtime()
+    while True:
+        await asyncio.sleep(5)
+        cur = _devices_mtime()
+        if cur != last:
+            last = cur
+            await asyncio.sleep(1)      # дать дозаписать файл
+            await reload_devices()
+
+
 async def monitor():
     interval = int(CFG.get("monitor_interval_seconds", 30))
-    misses = {n: 0 for n in DEVICES}
+    misses: dict[str, int] = {}
     while True:
-        res = await asyncio.gather(*(get_status(n) for n in DEVICES))
-        for n, s in zip(DEVICES, res):
-            misses[n] = 0 if s else misses[n] + 1
+        names = list(DEVICES)
+        res = await asyncio.gather(*(get_status(n) for n in names))
+        for n, s in zip(names, res):
+            if n not in DEVICES:
+                continue
+            if n not in ONLINE:                      # первое наблюдение: просто запомнить состояние
+                ONLINE[n] = bool(s)
+                misses[n] = 0 if s else 2
+                continue
+            misses[n] = 0 if s else misses.get(n, 0) + 1
             now_online = misses[n] < 2
-            if n in ONLINE and ONLINE[n] != now_online:
+            if ONLINE[n] != now_online:
                 await notify(f"{'🟢 вышел в сеть' if now_online else '🔴 пропал из сети'}: {DEVICES[n]['title']}")
             ONLINE[n] = now_online
+        for n in [n for n in misses if n not in DEVICES]:
+            del misses[n]
         await asyncio.sleep(interval)
 
 
 async def main():
     asyncio.create_task(monitor())
+    asyncio.create_task(watch_devices())
     log.info("bot started")
     await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
 

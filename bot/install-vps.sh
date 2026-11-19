@@ -5,7 +5,7 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 apt-get install -y python3-venv
 id rcbot >/dev/null 2>&1 || useradd --system --home /opt/rc-bot --shell /usr/sbin/nologin rcbot
 mkdir -p /opt/rc-bot
-install -m 644 "$SRC/bot.py" "$SRC/signing.py" "$SRC/gen_totp.py" "$SRC/requirements.txt" /opt/rc-bot/
+install -m 644 "$SRC/bot.py" "$SRC/signing.py" "$SRC/gen_totp.py" "$SRC/rcctl.py" "$SRC/requirements.txt" /opt/rc-bot/
 [ -f /opt/rc-bot/config.yaml ] || cp "${SRC}/config.yaml" /opt/rc-bot/config.yaml 2>/dev/null || { cp "$SRC/config.example.yaml" /opt/rc-bot/config.yaml; echo "!! заполните /opt/rc-bot/config.yaml"; }
 [ -f /opt/rc-bot/.env ] || { cp "${SRC}/.env" /opt/rc-bot/.env 2>/dev/null || cp "$SRC/.env.example" /opt/rc-bot/.env; echo "!! заполните /opt/rc-bot/.env"; }
 python3 -m venv /opt/rc-bot/venv
@@ -14,6 +14,13 @@ python3 -m venv /opt/rc-bot/venv
 chown -R rcbot:rcbot /opt/rc-bot
 chmod 600 /opt/rc-bot/.env
 install -m 644 "$SRC/rc-bot.service" /etc/systemd/system/rc-bot.service
+# команда rcctl (запускается от root, правит /opt/rc-bot/devices.yaml)
+cat > /usr/local/bin/rcctl <<'WRAP'
+#!/bin/sh
+exec /opt/rc-bot/venv/bin/python /opt/rc-bot/rcctl.py "$@"
+WRAP
+chmod 755 /usr/local/bin/rcctl
 systemctl daemon-reload
 systemctl enable rc-bot.service
+systemctl is-active --quiet rc-bot.service && systemctl restart rc-bot.service || true
 echo "Заполните config.yaml и .env, затем: systemctl restart rc-bot && journalctl -u rc-bot -f"

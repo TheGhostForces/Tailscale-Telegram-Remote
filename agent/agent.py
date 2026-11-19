@@ -204,10 +204,13 @@ def commands():
 async def wake(request: Request):
     data = await request.json()
     mac = str(data.get("mac", "")).upper().replace("-", ":")
-    known = {d["mac"].upper() for d in CFG.get("devices", [])}
-    if mac not in known:
+    known = {d["mac"].upper() for d in (CFG.get("devices") or [])}
+    if known and mac not in known:          # белый список MAC необязателен
         raise HTTPException(400, "unknown mac")
-    pkt = magic_packet(mac)
+    try:
+        pkt = magic_packet(mac)
+    except ValueError:
+        raise HTTPException(400, "bad mac")
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         for _ in range(3):

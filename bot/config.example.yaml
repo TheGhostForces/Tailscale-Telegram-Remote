@@ -1,28 +1,6 @@
-# Конфигурация бота. Скопируйте в config.yaml.
-devices:
-  pc:
-    title: "ПК (Windows)"
-    address: "100.64.0.1"          # адрес в Tailscale
-    port: 8765
-    secret_env: PC_SECRET
-    mac: "AA:BB:CC:DD:EE:01"
-    wake:                          # ПК всегда дома -> через роутер
-      mode: router
-      host: "your-home.ddns.example"   # белый IP или DDNS роутера
-      port: 40009                      # внешний UDP-порт -> ПК:9 (виртуальный сервер)
-  laptop:
-    title: "Ноутбук (Debian)"
-    address: "100.64.0.2"
-    port: 8765
-    secret_env: LAPTOP_SECRET
-    mac: "AA:BB:CC:DD:EE:02"
-    wake:                          # будится только когда дома
-      mode: router
-      host: "your-home.ddns.example"
-      port: 40010                      # внешний UDP-порт -> ноутбук:9
-      # Альтернатива: попросить включённый ПК разбудить ноутбук по LAN:
-      # mode: via
-      # device: pc
+# Общие настройки бота. Скопируйте в config.yaml.
+# Список устройств здесь НЕ хранится: им управляет утилита `rcctl` (файл devices.yaml),
+# бот подхватывает изменения сам, перезапуск не нужен. См. docs/DEVICES.md.
 
 confirm_actions: [sleep, reboot, shutdown]   # требуют кнопку + TOTP (/run требует всегда)
 wake_wait_seconds: 120

@@ -66,7 +66,7 @@ PY
 
 1. @BotFather → `/newbot` → токен. Свой числовой ID — у @userinfobot.
 2. `cd bot && python3 gen_totp.py` — добавьте `TOTP_SECRET` в приложение-аутентификатор.
-3. Заполните `bot/.env` и `bot/config.yaml` (адреса Tailscale, MAC, `secret_env`).
+3. Заполните `bot/.env` (токен, ваш ID, TOTP) и `bot/config.yaml` (общие настройки). Устройства добавляются командой `sudo rcctl add ...` уже после установки бота, см. [DEVICES.md](DEVICES.md).
 4. На VPS: `sudo bash install-vps.sh`, затем `sudo systemctl restart rc-bot && journalctl -u rc-bot -f`.
 
 **Проверка:** `/devices` показывает оба устройства; `/lock pc` работает сразу; `/reboot pc` просит кнопку и TOTP; с чужого аккаунта бот молчит, а вам приходит уведомление о попытке.

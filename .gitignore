@@ -29,3 +29,6 @@ Thumbs.db
 # --- список устройств с секретами агентов ---
 devices.yaml
 !devices.example.yaml
+
+# --- состояние бота ---
+timers.json

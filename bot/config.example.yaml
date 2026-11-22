@@ -2,7 +2,17 @@
 # Список устройств здесь НЕ хранится: им управляет утилита `rcctl` (файл devices.yaml),
 # бот подхватывает изменения сам, перезапуск не нужен. См. docs/DEVICES.md.
 
-confirm_actions: [sleep, reboot, shutdown]   # требуют кнопку + TOTP (/run требует всегда)
+confirm_actions: [sleep, reboot, shutdown]   # требуют кнопку + TOTP (/run и таймеры требуют всегда)
 wake_wait_seconds: 120
 monitor_interval_seconds: 30
 log_file: bot.log
+
+# Интерфейс
+cleanup_user_messages: true     # удалять из чата нажатия кнопок и команды, чтобы чат оставался чистым
+startup_message: false          # присылать «Бот запущен» (беззвучно) и обновлять клавиатуру после перезапуска
+timezone: UTC                   # часовой пояс для времени в таймерах и журнале, например Europe/Moscow
+
+# Предупреждения (отдельные сообщения). Уберите параметр или поставьте 0, чтобы отключить.
+alerts:
+  battery_percent: 15           # заряд ≤ N% и не заряжается
+  disk_percent: 90              # диск заполнен ≥ N%
